@@ -1,0 +1,11 @@
+sprai for Debian
+----------------
+
+The ezez*.pl scripts can also be called without
+the .pl suffix in this package, but this is currently Debian-specific.
+
+Any remaining scripts and commands that come with Sprai can be found
+in /usr/lib/sprai. Most of them are only useful internally by the software,
+but everything is there should you need to use them directly.
+
+ -- Afif Elghraoui <afif@debian.org>, Wed,  1 Jun 2016 23:23:55 -0700

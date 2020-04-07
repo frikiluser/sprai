@@ -1,0 +1,1120 @@
+Description: Use 2to3 to port from Python2 to Python3
+Bug-Debian: https://bugs.debian.org/943280
+Author: Andreas Tille <tille@debian.org>
+Last-Update: Wed, 25 Dec 2019 08:31:51 +0100
+
+--- a/waf
++++ b/waf
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/python3
+ # encoding: ISO8859-1
+ # Thomas Nagy, 2005-2012
+ 
+@@ -111,7 +111,7 @@ def unpack_wafdir(dir):
+ 	os.unlink(tmp)
+ 	os.chdir(cwd)
+ 
+-	try: dir = unicode(dir, 'mbcs')
++	try: dir = str(dir, 'mbcs')
+ 	except: pass
+ 	try:
+ 		from ctypes import windll
+--- a/waflib/Build.py
++++ b/waflib/Build.py
+@@ -1,10 +1,10 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+ import os,sys,errno,re,shutil
+ try:
+-	import cPickle
++	import pickle
+ except ImportError:
+ 	import pickle as cPickle
+ from waflib import Runner,TaskGen,Utils,ConfigSet,Task,Logs,Options,Context,Errors
+@@ -144,8 +144,8 @@ class BuildContext(Context.Context):
+ 					waflib.Node.pickle_lock.acquire()
+ 					waflib.Node.Nod3=self.node_class
+ 					try:
+-						data=cPickle.load(f)
+-					except Exception ,e:
++						data=pickle.load(f)
++					except Exception as e:
+ 						Logs.debug('build: Could not pickle the build cache %s: %r'%(dbfn,e))
+ 					else:
+ 						for x in SAVED_ATTRS:
+@@ -167,7 +167,7 @@ class BuildContext(Context.Context):
+ 			f=None
+ 			try:
+ 				f=open(db+'.tmp','wb')
+-				cPickle.dump(data,f,-1)
++				pickle.dump(data,f,-1)
+ 			finally:
+ 				if f:
+ 					f.close()
+@@ -608,7 +608,7 @@ class UninstallContext(InstallContext):
+ 		self.uninstall.append(tgt)
+ 		try:
+ 			os.remove(tgt)
+-		except OSError ,e:
++		except OSError as e:
+ 			if e.errno!=errno.ENOENT:
+ 				if not getattr(self,'uninstall_error',None):
+ 					self.uninstall_error=True
+@@ -659,7 +659,7 @@ class CleanContext(BuildContext):
+ 		Logs.debug('build: clean called')
+ 		if self.bldnode!=self.srcnode:
+ 			lst=[]
+-			for e in self.all_envs.values():
++			for e in list(self.all_envs.values()):
+ 				lst.extend(self.root.find_or_declare(f)for f in e[CFG_FILES])
+ 			for n in self.bldnode.ant_glob('**/*',excl='.lock* *conf_check_*/** config.log c4che/*',quiet=True):
+ 				if n in lst:
+--- a/waflib/ConfigSet.py
++++ b/waflib/ConfigSet.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -19,13 +19,13 @@ class ConfigSet(object):
+ 		keys=set()
+ 		cur=self
+ 		while cur:
+-			keys.update(cur.table.keys())
++			keys.update(list(cur.table.keys()))
+ 			cur=getattr(cur,'parent',None)
+ 		keys=list(keys)
+ 		keys.sort()
+ 		return keys
+ 	def __str__(self):
+-		return"\n".join(["%r %r"%(x,self.__getitem__(x))for x in self.keys()])
++		return"\n".join(["%r %r"%(x,self.__getitem__(x))for x in list(self.keys())])
+ 	def __getitem__(self,key):
+ 		try:
+ 			while 1:
+@@ -65,7 +65,7 @@ class ConfigSet(object):
+ 		except AttributeError:
+ 			pass
+ 		else:
+-			keys=tbl.keys()
++			keys=list(tbl.keys())
+ 			for x in keys:
+ 				tbl[x]=copy.deepcopy(tbl[x])
+ 			self.table=tbl
+@@ -140,12 +140,12 @@ class ConfigSet(object):
+ 			tbl[g(2)]=eval(g(3))
+ 		Logs.debug('env: %s'%str(self.table))
+ 	def update(self,d):
+-		for k,v in d.items():
++		for k,v in list(d.items()):
+ 			self[k]=v
+ 	def stash(self):
+ 		orig=self.table
+ 		tbl=self.table=self.table.copy()
+-		for x in tbl.keys():
++		for x in list(tbl.keys()):
+ 			tbl[x]=copy.deepcopy(tbl[x])
+ 		self.undo_stack=self.undo_stack+[orig]
+ 	def revert(self):
+--- a/waflib/Configure.py
++++ b/waflib/Configure.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -7,7 +7,7 @@ from waflib import ConfigSet,Utils,Optio
+ try:
+ 	from urllib import request
+ except ImportError:
+-	from urllib import urlopen
++	from urllib.request import urlopen
+ else:
+ 	urlopen=request.urlopen
+ BREAK='break'
+@@ -174,14 +174,14 @@ class ConfigurationContext(Context.Conte
+ 			module=None
+ 			try:
+ 				module=Context.load_tool(tool,tooldir)
+-			except ImportError ,e:
++			except ImportError as e:
+ 				if Options.options.download:
+ 					module=download_tool(tool,ctx=self)
+ 					if not module:
+ 						self.fatal('Could not load the Waf tool %r or download a suitable replacement from the repository (sys.path %r)\n%s'%(tool,sys.path,e))
+ 				else:
+ 					self.fatal('Could not load the Waf tool %r from %r (try the --download option?):\n%s'%(tool,sys.path,e))
+-			except Exception ,e:
++			except Exception as e:
+ 				self.to_log('imp %r (%r & %r)'%(tool,tooldir,funs))
+ 				self.to_log(Utils.ex_stack())
+ 				raise
+@@ -204,7 +204,7 @@ class ConfigurationContext(Context.Conte
+ 			if not f:self.fatal("No such method '%s'."%x)
+ 			try:
+ 				f()
+-			except Exception ,e:
++			except Exception as e:
+ 				ret=self.err_handler(x,e)
+ 				if ret==BREAK:
+ 					break
+--- a/waflib/Context.py
++++ b/waflib/Context.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -151,7 +151,7 @@ class Context(ctx):
+ 			else:
+ 				out,err=(None,None)
+ 				ret=subprocess.Popen(cmd,**kw).wait()
+-		except Exception ,e:
++		except Exception as e:
+ 			raise Errors.WafError('Execution failure: %s'%str(e),ex=e)
+ 		if out:
+ 			if not isinstance(out,str):
+@@ -188,7 +188,7 @@ class Context(ctx):
+ 		try:
+ 			p=subprocess.Popen(cmd,**kw)
+ 			(out,err)=p.communicate()
+-		except Exception ,e:
++		except Exception as e:
+ 			raise Errors.WafError('Execution failure: %s'%str(e),ex=e)
+ 		if not isinstance(out,str):
+ 			out=out.decode(sys.stdout.encoding or'iso8859-1')
+--- a/waflib/Errors.py
++++ b/waflib/Errors.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Logs.py
++++ b/waflib/Logs.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Node.py
++++ b/waflib/Node.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -302,7 +302,7 @@ class Node(object):
+ 						k='^%s$'%k
+ 						try:
+ 							accu.append(re.compile(k,flags=reflags))
+-						except Exception ,e:
++						except Exception as e:
+ 							raise Errors.WafError("Invalid pattern: %s"%k,e)
+ 				ret.append(accu)
+ 			return ret
+--- a/waflib/Options.py
++++ b/waflib/Options.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -57,7 +57,7 @@ class opt_parser(optparse.OptionParser):
+ 			s=cls.__doc__ or''
+ 			cmds_str[cls.cmd]=s
+ 		if Context.g_module:
+-			for(k,v)in Context.g_module.__dict__.items():
++			for(k,v)in list(Context.g_module.__dict__.items()):
+ 				if k in['options','init','shutdown']:
+ 					continue
+ 				if type(v)is type(Context.create_context):
+@@ -66,7 +66,7 @@ class opt_parser(optparse.OptionParser):
+ 		just=0
+ 		for k in cmds_str:
+ 			just=max(just,len(k))
+-		lst=['  %s: %s'%(k.ljust(just),v)for(k,v)in cmds_str.items()]
++		lst=['  %s: %s'%(k.ljust(just),v)for(k,v)in list(cmds_str.items())]
+ 		lst.sort()
+ 		ret='\n'.join(lst)
+ 		return'''waf [commands] [options]
+--- a/waflib/Runner.py
++++ b/waflib/Runner.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -6,7 +6,7 @@ import random,atexit
+ try:
+ 	from queue import Queue
+ except ImportError:
+-	from Queue import Queue
++	from queue import Queue
+ from waflib import Utils,Task,Errors,Logs
+ GAP=10
+ class TaskConsumer(Utils.threading.Thread):
+@@ -95,7 +95,7 @@ class Parallel(object):
+ 				self.outstanding+=self.frozen
+ 				self.frozen=[]
+ 			elif not self.count:
+-				self.outstanding.extend(self.biter.next())
++				self.outstanding.extend(next(self.biter))
+ 				self.total=self.bld.total()
+ 				break
+ 	def add_more_tasks(self,tsk):
+--- a/waflib/Scripting.py
++++ b/waflib/Scripting.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -85,24 +85,24 @@ def waf_entry_point(current_directory,ve
+ 		sys.exit(1)
+ 	try:
+ 		set_main_module(Context.run_dir+os.sep+Context.WSCRIPT_FILE)
+-	except Errors.WafError ,e:
++	except Errors.WafError as e:
+ 		Logs.pprint('RED',e.verbose_msg)
+ 		Logs.error(str(e))
+ 		sys.exit(1)
+-	except Exception ,e:
++	except Exception as e:
+ 		Logs.error('Waf: The wscript in %r is unreadable'%Context.run_dir,e)
+ 		traceback.print_exc(file=sys.stdout)
+ 		sys.exit(2)
+ 	try:
+ 		run_commands()
+-	except Errors.WafError ,e:
++	except Errors.WafError as e:
+ 		if Logs.verbose>1:
+ 			Logs.pprint('RED',e.verbose_msg)
+ 		Logs.error(e.msg)
+ 		sys.exit(1)
+ 	except SystemExit:
+ 		raise
+-	except Exception ,e:
++	except Exception as e:
+ 		traceback.print_exc(file=sys.stdout)
+ 		sys.exit(2)
+ 	except KeyboardInterrupt:
+@@ -191,7 +191,7 @@ def distclean(ctx):
+ 					shutil.rmtree(proj['out_dir'])
+ 				except IOError:
+ 					pass
+-				except OSError ,e:
++				except OSError as e:
+ 					if e.errno!=errno.ENOENT:
+ 						Logs.warn('project %r cannot be removed'%proj[Context.OUT])
+ 			else:
+@@ -199,7 +199,7 @@ def distclean(ctx):
+ 			for k in(proj['out_dir'],proj['top_dir'],proj['run_dir']):
+ 				try:
+ 					os.remove(os.path.join(k,Options.lockfile))
+-				except OSError ,e:
++				except OSError as e:
+ 					if e.errno!=errno.ENOENT:
+ 						Logs.warn('file %r cannot be removed'%f)
+ 		if f.startswith('.waf')and not Options.commands:
+--- a/waflib/Task.py
++++ b/waflib/Task.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -502,7 +502,7 @@ def set_file_constraints(tasks):
+ 			ins[id(a)].add(x)
+ 		for a in getattr(x,'outputs',[]):
+ 			outs[id(a)].add(x)
+-	links=set(ins.keys()).intersection(outs.keys())
++	links=set(ins.keys()).intersection(list(outs.keys()))
+ 	for k in links:
+ 		for a in ins[k]:
+ 			a.run_after.update(outs[k])
+--- a/waflib/TaskGen.py
++++ b/waflib/TaskGen.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -29,13 +29,13 @@ class task_gen(object):
+ 			except AttributeError:
+ 				self.bld.idx={}
+ 				self.idx=self.bld.idx[id(self.path)]=1
+-		for key,val in kw.items():
++		for key,val in list(kw.items()):
+ 			setattr(self,key,val)
+ 	def __str__(self):
+ 		return"<task_gen %r declared in %s>"%(self.name,self.path.abspath())
+ 	def __repr__(self):
+ 		lst=[]
+-		for x in self.__dict__.keys():
++		for x in list(self.__dict__.keys()):
+ 			if x not in['env','bld','compiled_tasks','tasks']:
+ 				lst.append("%s=%s"%(x,repr(getattr(self,x))))
+ 		return"bld(%s) in %s"%(", ".join(lst),self.path.abspath())
+@@ -74,7 +74,7 @@ class task_gen(object):
+ 				prec[x]=prec_tbl[x]
+ 		tmp=[]
+ 		for a in keys:
+-			for x in prec.values():
++			for x in list(prec.values()):
+ 				if a in x:break
+ 			else:
+ 				tmp.append(a)
+@@ -117,7 +117,7 @@ class task_gen(object):
+ 		for k in task_gen.mappings:
+ 			if name.endswith(k):
+ 				return task_gen.mappings[k]
+-		raise Errors.WafError("File %r has no mapping in %r (did you forget to load a waf tool?)"%(node,task_gen.mappings.keys()))
++		raise Errors.WafError("File %r has no mapping in %r (did you forget to load a waf tool?)"%(node,list(task_gen.mappings.keys())))
+ 	def create_task(self,name,src=None,tgt=None):
+ 		task=Task.classes[name](env=self.env.derive(),generator=self)
+ 		if src:
+--- a/waflib/Tools/__init__.py
++++ b/waflib/Tools/__init__.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/ar.py
++++ b/waflib/Tools/ar.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/asm.py
++++ b/waflib/Tools/asm.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/bison.py
++++ b/waflib/Tools/bison.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/c.py
++++ b/waflib/Tools/c.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/c_aliases.py
++++ b/waflib/Tools/c_aliases.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/c_config.py
++++ b/waflib/Tools/c_config.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -124,7 +124,7 @@ def validate_cfg(self,kw):
+ 		if not'msg'in kw:
+ 			kw['msg']='Checking for %r version'%kw['modversion']
+ 		return
+-	for x in cfg_ver.keys():
++	for x in list(cfg_ver.keys()):
+ 		y=x.replace('-','_')
+ 		if y in kw:
+ 			if not'package'in kw:
+@@ -160,7 +160,7 @@ def exec_cfg(self,kw):
+ 	defi=kw.get('define_variable',None)
+ 	if not defi:
+ 		defi=self.env.PKG_CONFIG_DEFINES or{}
+-	for key,val in defi.items():
++	for key,val in list(defi.items()):
+ 		lst.append('--define-variable=%s=%s'%(key,val))
+ 	if'variables'in kw:
+ 		env=kw.get('env',self.env)
+@@ -413,7 +413,7 @@ CACHE_RESULTS=1
+ COMPILE_ERRORS=2
+ @conf
+ def run_c_code(self,*k,**kw):
+-	lst=[str(v)for(p,v)in kw.items()if p!='env']
++	lst=[str(v)for(p,v)in list(kw.items())if p!='env']
+ 	h=Utils.h_list(lst)
+ 	dir=self.bldnode.abspath()+os.sep+(not Utils.is_win32 and'.'or'')+'conf_check_'+Utils.to_hex(h)
+ 	try:
+@@ -449,7 +449,7 @@ def run_c_code(self,*k,**kw):
+ 	bld.all_envs.update(self.all_envs)
+ 	bld.env=kw['env']
+ 	o=bld(features=kw['features'],source=kw['compile_filename'],target='testprog')
+-	for k,v in kw.items():
++	for k,v in list(kw.items()):
+ 		setattr(o,k,v)
+ 	self.to_log("==>\n%s\n<=="%kw['code'])
+ 	bld.targets='*'
+--- a/waflib/Tools/c_osx.py
++++ b/waflib/Tools/c_osx.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/c_preproc.py
++++ b/waflib/Tools/c_preproc.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -584,7 +584,7 @@ class c_parser(object):
+ 				elif token=='pragma':
+ 					if re_pragma_once.match(line.lower()):
+ 						self.ban_includes.add(self.curfile)
+-			except Exception ,e:
++			except Exception as e:
+ 				if Logs.verbose:
+ 					debug('preproc: line parsing failed (%s): %s %s',e,line,Utils.ex_stack())
+ def scan(task):
+--- a/waflib/Tools/c_tests.py
++++ b/waflib/Tools/c_tests.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/ccroot.py
++++ b/waflib/Tools/ccroot.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -159,7 +159,7 @@ def process_use(self):
+ 	out=[]
+ 	tmp=[]
+ 	for x in self.tmp_use_seen:
+-		for k in use_prec.values():
++		for k in list(use_prec.values()):
+ 			if x in k:
+ 				break
+ 		else:
+--- a/waflib/Tools/compiler_c.py
++++ b/waflib/Tools/compiler_c.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -15,7 +15,7 @@ def configure(conf):
+ 		conf.start_msg('Checking for %r (c compiler)'%compiler)
+ 		try:
+ 			conf.load(compiler)
+-		except conf.errors.ConfigurationError ,e:
++		except conf.errors.ConfigurationError as e:
+ 			conf.env.revert()
+ 			conf.end_msg(False)
+ 			debug('compiler_c: %r'%e)
+--- a/waflib/Tools/compiler_cxx.py
++++ b/waflib/Tools/compiler_cxx.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -15,7 +15,7 @@ def configure(conf):
+ 		conf.start_msg('Checking for %r (c++ compiler)'%compiler)
+ 		try:
+ 			conf.load(compiler)
+-		except conf.errors.ConfigurationError ,e:
++		except conf.errors.ConfigurationError as e:
+ 			conf.env.revert()
+ 			conf.end_msg(False)
+ 			debug('compiler_cxx: %r'%e)
+--- a/waflib/Tools/compiler_d.py
++++ b/waflib/Tools/compiler_d.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -10,7 +10,7 @@ def configure(conf):
+ 		conf.start_msg('Checking for %r (d compiler)'%compiler)
+ 		try:
+ 			conf.load(compiler)
+-		except conf.errors.ConfigurationError ,e:
++		except conf.errors.ConfigurationError as e:
+ 			conf.env.revert()
+ 			conf.end_msg(False)
+ 			Logs.debug('compiler_d: %r'%e)
+--- a/waflib/Tools/compiler_fc.py
++++ b/waflib/Tools/compiler_fc.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -19,7 +19,7 @@ def configure(conf):
+ 		conf.start_msg('Checking for %r (fortran compiler)'%compiler)
+ 		try:
+ 			conf.load(compiler)
+-		except conf.errors.ConfigurationError ,e:
++		except conf.errors.ConfigurationError as e:
+ 			conf.env.revert()
+ 			conf.end_msg(False)
+ 			Logs.debug('compiler_fortran: %r'%e)
+--- a/waflib/Tools/cs.py
++++ b/waflib/Tools/cs.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/cxx.py
++++ b/waflib/Tools/cxx.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/d.py
++++ b/waflib/Tools/d.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/d_config.py
++++ b/waflib/Tools/d_config.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/d_scan.py
++++ b/waflib/Tools/d_scan.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/dbus.py
++++ b/waflib/Tools/dbus.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/dmd.py
++++ b/waflib/Tools/dmd.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/errcheck.py
++++ b/waflib/Tools/errcheck.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -26,7 +26,7 @@ def check_same_targets(self):
+ 			except AttributeError:
+ 				check_task(tg)
+ 	dupe=False
+-	for(k,v)in mp.items():
++	for(k,v)in list(mp.items()):
+ 		if len(v)>1:
+ 			dupe=True
+ 			msg='* Node %r is created more than once%s. The task generators are:'%(k,Logs.verbose==1 and" (full message on 'waf -v -v')"or"")
+@@ -37,7 +37,7 @@ def check_same_targets(self):
+ 				else:
+ 					Logs.error('  %d. %r in %r'%(1+v.index(x),x.generator.name,getattr(x.generator,'path',None)))
+ 	if not dupe:
+-		for(k,v)in uids.items():
++		for(k,v)in list(uids.items()):
+ 			if len(v)>1:
+ 				Logs.error('* Several tasks use the same identifier. Please check the information on\n   http://docs.waf.googlecode.com/git/apidocs_16/Task.html#waflib.Task.Task.uid')
+ 				for tsk in v:
+@@ -46,11 +46,11 @@ def check_invalid_constraints(self):
+ 	feat=set([])
+ 	for x in list(TaskGen.feats.values()):
+ 		feat.union(set(x))
+-	for(x,y)in TaskGen.task_gen.prec.items():
++	for(x,y)in list(TaskGen.task_gen.prec.items()):
+ 		feat.add(x)
+ 		feat.union(set(y))
+ 	ext=set([])
+-	for x in TaskGen.task_gen.mappings.values():
++	for x in list(TaskGen.task_gen.mappings.values()):
+ 		ext.add(x.__name__)
+ 	invalid=ext&feat
+ 	if invalid:
+--- a/waflib/Tools/fc.py
++++ b/waflib/Tools/fc.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -68,7 +68,7 @@ class fc(Task.Task):
+ 						if not node in bld.node_deps[key]:
+ 							bld.node_deps[key].append(node)
+ 						ins[id(node)].add(tsk)
+-		for k in ins.keys():
++		for k in list(ins.keys()):
+ 			for a in ins[k]:
+ 				a.run_after.update(outs[k])
+ 				tmp=[]
+@@ -106,7 +106,7 @@ class fcprogram_test(fcprogram):
+ 		kw['output']=0
+ 		try:
+ 			(bld.out,bld.err)=bld.cmd_and_log(cmd,**kw)
+-		except Exception ,e:
++		except Exception as e:
+ 			return-1
+ 		if bld.out:
+ 			bld.to_log("out: %s\n"%bld.out)
+--- a/waflib/Tools/fc_config.py
++++ b/waflib/Tools/fc_config.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/fc_scan.py
++++ b/waflib/Tools/fc_scan.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/flex.py
++++ b/waflib/Tools/flex.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/g95.py
++++ b/waflib/Tools/g95.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/gas.py
++++ b/waflib/Tools/gas.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/gcc.py
++++ b/waflib/Tools/gcc.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/gdc.py
++++ b/waflib/Tools/gdc.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/gfortran.py
++++ b/waflib/Tools/gfortran.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/glib2.py
++++ b/waflib/Tools/glib2.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -73,7 +73,7 @@ def process_enums(self):
+ 			options.append('--template %s'%(template_node.abspath()))
+ 			inputs.append(template_node)
+ 		params={'file-head':'--fhead','file-prod':'--fprod','file-tail':'--ftail','enum-prod':'--eprod','value-head':'--vhead','value-prod':'--vprod','value-tail':'--vtail','comments':'--comments'}
+-		for param,option in params.items():
++		for param,option in list(params.items()):
+ 			if enum[param]:
+ 				options.append('%s %r'%(option,enum[param]))
+ 		env['GLIB_MKENUMS_OPTIONS']=' '.join(options)
+--- a/waflib/Tools/gnu_dirs.py
++++ b/waflib/Tools/gnu_dirs.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/gxx.py
++++ b/waflib/Tools/gxx.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/icc.py
++++ b/waflib/Tools/icc.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/icpc.py
++++ b/waflib/Tools/icpc.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/ifort.py
++++ b/waflib/Tools/ifort.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/intltool.py
++++ b/waflib/Tools/intltool.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/irixcc.py
++++ b/waflib/Tools/irixcc.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/javaw.py
++++ b/waflib/Tools/javaw.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/kde4.py
++++ b/waflib/Tools/kde4.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/ldc2.py
++++ b/waflib/Tools/ldc2.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/lua.py
++++ b/waflib/Tools/lua.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/msvc.py
++++ b/waflib/Tools/msvc.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -104,7 +104,7 @@ echo LIB=%%LIB%%
+ 	try:
+ 		try:
+ 			conf.cmd_and_log(cxx+['/help'],env=env)
+-		except Exception ,e:
++		except Exception as e:
+ 			debug('msvc: get_msvc_version: %r %r %r -> failure'%(compiler,version,target))
+ 			debug(str(e))
+ 			conf.fatal('msvc: cannot run the compiler (in get_msvc_version)')
+@@ -362,7 +362,7 @@ def gather_intel_composer_versions(conf,
+ 				if os.path.isfile(batch_file):
+ 					try:
+ 						targets.append((target,(arch,conf.get_msvc_version('intel',version,target,batch_file))))
+-					except conf.errors.ConfigurationError ,e:
++					except conf.errors.ConfigurationError as e:
+ 						pass
+ 				compilervars_warning_attr='_compilervars_warning_key'
+ 				if version[0:2]=='13'and getattr(conf,compilervars_warning_attr,True):
+--- a/waflib/Tools/nasm.py
++++ b/waflib/Tools/nasm.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/perl.py
++++ b/waflib/Tools/perl.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/python.py
++++ b/waflib/Tools/python.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -160,7 +160,7 @@ def check_python_headers(conf):
+ 		conf.fatal("Python development headers not found (-v for details).")
+ 	vals=['%s = %r'%(x,y)for(x,y)in zip(v,lst)]
+ 	conf.to_log("Configuration returned from %r:\n%r\n"%(pybin,'\n'.join(vals)))
+-	dct=dict(zip(v,lst))
++	dct=dict(list(zip(v,lst)))
+ 	x='MACOSX_DEPLOYMENT_TARGET'
+ 	if dct[x]:
+ 		conf.env[x]=conf.environ[x]=dct[x]
+--- a/waflib/Tools/qt4.py
++++ b/waflib/Tools/qt4.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/ruby.py
++++ b/waflib/Tools/ruby.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/suncc.py
++++ b/waflib/Tools/suncc.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/suncxx.py
++++ b/waflib/Tools/suncxx.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/tex.py
++++ b/waflib/Tools/tex.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -120,7 +120,7 @@ class tex(Task.Task):
+ 			Logs.error('error bibunitscan')
+ 		else:
+ 			if bibunits:
+-				fn=['bu'+str(i)for i in xrange(1,len(bibunits)+1)]
++				fn=['bu'+str(i)for i in range(1,len(bibunits)+1)]
+ 				if fn:
+ 					Logs.warn('calling bibtex on bibunits')
+ 				for f in fn:
+--- a/waflib/Tools/vala.py
++++ b/waflib/Tools/vala.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/waf_unit_test.py
++++ b/waflib/Tools/waf_unit_test.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/winres.py
++++ b/waflib/Tools/winres.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/xlc.py
++++ b/waflib/Tools/xlc.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Tools/xlcxx.py
++++ b/waflib/Tools/xlcxx.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/Utils.py
++++ b/waflib/Utils.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -11,7 +11,7 @@ except ImportError:
+ 		def popleft(self):
+ 			return self.pop(0)
+ try:
+-	import _winreg as winreg
++	import winreg as winreg
+ except ImportError:
+ 	try:
+ 		import winreg
+@@ -272,11 +272,11 @@ def check_dir(path):
+ 	if not os.path.isdir(path):
+ 		try:
+ 			os.makedirs(path)
+-		except OSError ,e:
++		except OSError as e:
+ 			if not os.path.isdir(path):
+ 				raise Errors.WafError('Cannot create the folder %r'%path,ex=e)
+ def def_attrs(cls,**kw):
+-	for k,v in kw.items():
++	for k,v in list(kw.items()):
+ 		if not hasattr(cls,k):
+ 			setattr(cls,k,v)
+ def quote_define_name(s):
+--- a/waflib/__init__.py
++++ b/waflib/__init__.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/ansiterm.py
++++ b/waflib/ansiterm.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+@@ -27,7 +27,7 @@ else:
+ 	import re,threading
+ 	is_vista=getattr(sys,"getwindowsversion",None)and sys.getwindowsversion()[0]>=6
+ 	try:
+-		_type=unicode
++		_type=str
+ 	except NameError:
+ 		_type=str
+ 	to_int=lambda number,default:number and int(number)or default
+--- a/waflib/extras/__init__.py
++++ b/waflib/extras/__init__.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/extras/compat15.py
++++ b/waflib/extras/compat15.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+--- a/waflib/fixpy2.py
++++ b/waflib/fixpy2.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/env python
++#!/usr/bin/python3
+ # encoding: utf-8
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 

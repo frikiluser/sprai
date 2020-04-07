@@ -1,0 +1,7 @@
+Registry:
+ - Name: OMICtools
+   Entry: OMICS_21293
+ - Name: bio.tools
+   Entry: NA
+ - Name: SciCrunch
+   Entry: NA

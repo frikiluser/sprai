@@ -1,0 +1,90 @@
+Description: Fix WAF for Python3
+Author: Antoni Villalonga <antoni@friki.cat>
+Bug-Debian: https://bugs.debian.org/943280
+Last-Update: 2020-04-06
+
+--- a/waflib/Node.py
++++ b/waflib/Node.py
+@@ -278,7 +278,7 @@
+ 					if maxdepth:
+ 						for k in node.ant_iter(accept=accept,maxdepth=maxdepth-1,pats=npats,dir=dir,src=src,remove=remove):
+ 							yield k
+-		raise StopIteration
++		return
+ 	def ant_glob(self,*k,**kw):
+ 		src=kw.get('src',True)
+ 		dir=kw.get('dir',False)
+--- a/wscript
++++ b/wscript
+@@ -53,7 +53,7 @@
+ #        'sprai_dagcon.cfg',
+ #        're2cons.pl',
+ #        'count_chars.pl'
+-        ], chmod=0755)
++        ], chmod=0o755)
+ 
+ 	bld.program(
+ 		source='bfmt72s.c',
+--- a/waflib/Tools/c_config.py
++++ b/waflib/Tools/c_config.py
+@@ -590,7 +590,7 @@
+ 	env=conf.env.env or None
+ 	try:
+ 		p=Utils.subprocess.Popen(cmd,stdin=Utils.subprocess.PIPE,stdout=Utils.subprocess.PIPE,stderr=Utils.subprocess.PIPE,env=env)
+-		p.stdin.write('\n')
++		p.stdin.write('\n'.encode())
+ 		out=p.communicate()[0]
+ 	except Exception:
+ 		conf.fatal('Could not determine the compiler version %r'%cmd)
+--- a/waflib/Task.py
++++ b/waflib/Task.py
+@@ -252,9 +252,9 @@
+ 		except AttributeError:
+ 			m=Utils.md5()
+ 			up=m.update
+-			up(self.__class__.__name__)
++			up(self.__class__.__name__.encode())
+ 			for x in self.inputs+self.outputs:
+-				up(x.abspath())
++				up(x.abspath().encode())
+ 			self.uid_=m.digest()
+ 			return self.uid_
+ 	def set_inputs(self,inp):
+@@ -270,7 +270,7 @@
+ 		try:return self.cache_sig
+ 		except AttributeError:pass
+ 		self.m=Utils.md5()
+-		self.m.update(self.hcode)
++		self.m.update(self.hcode.encode())
+ 		self.sig_explicit_deps()
+ 		self.sig_vars()
+ 		if self.scan:
+--- a/waflib/Utils.py
++++ b/waflib/Utils.py
+@@ -285,7 +285,7 @@
+ 	return fu
+ def h_list(lst):
+ 	m=md5()
+-	m.update(str(lst))
++	m.update(str(lst).encode())
+ 	return m.digest()
+ def h_fun(fun):
+ 	try:
+--- a/waflib/Build.py
++++ b/waflib/Build.py
+@@ -3,6 +3,7 @@
+ # WARNING! Do not edit! http://waf.googlecode.com/git/docs/wafbook/single.html#_obtaining_the_waf_file
+ 
+ import os,sys,errno,re,shutil
++import json
+ try:
+ 	import pickle
+ except ImportError:
+@@ -167,6 +168,7 @@
+ 			f=None
+ 			try:
+ 				f=open(db+'.tmp','wb')
++				print(json.dumps(data))
+ 				pickle.dump(data,f,-1)
+ 			finally:
+ 				if f:

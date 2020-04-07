@@ -1,0 +1,48 @@
+#!/bin/sh
+# Repack an upstream tarball, unpacking waf files inside it.
+#
+# Meant to be run by uscan(1) as the "command param", after repacking
+# (if any) by mk-origtargz. So you shouldn't give "repacksuffix" to
+# debian/watch; instead you should set it below; however this should
+# still match the dversionmangle in that file.
+#
+# This file was downloaded from
+# https://wiki.debian.org/UnpackWaf?action=AttachFile&do=view&target=repack-waf
+# and has been only slightly modified.
+
+repacksuffix="+dfsg"
+unwaf_paths=.
+
+# You shouldn't need to change anything below here.
+
+USAGE="Usage: $0 --upstream-version version filename"
+
+test "$1" = "--upstream-version" || { echo >&2 "$USAGE"; exit 2; }
+upstream="$2"
+filename="$3"
+
+source="$(dpkg-parsechangelog -SSource)"
+newups="${upstream}${repacksuffix}"
+basedir="$(dirname "$filename")"
+
+unpack_waf() {
+	local olddir="$PWD"
+	cd "$1"
+	test -x ./waf || return 1
+	./waf --help > /dev/null
+	mv .waf-*/* .
+	sed -i '/^#==>$/,$d' waf
+	rmdir .waf-*
+	find waf* -name "*.pyc" -delete
+	cd "$olddir"
+}
+
+set -e
+
+tar -xf "$basedir/${source}_${upstream}.orig.tar.gz"
+cd "${source}-${upstream}"
+for i in $unwaf_paths; do unpack_waf "$i"; done
+cd ..
+mv "${source}-${upstream}" "${source}-${newups}"
+GZIP="-9fn" tar -czf "$basedir/${source}_${newups}.orig.tar.gz" "${source}-${newups}"
+rm -rf "${source}-${newups}"

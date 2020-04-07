@@ -1,0 +1,29 @@
+Description: Configure example/test run
+ Use the provided example data and disable running wgs-assembler
+ (which is discontinued upstream anyway).
+Author: Afif Elghraoui <afif@debian.org>
+Forwarded: no
+Last-Update: 2017-01-19
+--- sprai.orig/ec.spec
++++ sprai/ec.spec
+@@ -1,6 +1,6 @@
+ #### common ####
+ # input_for_database: filtered subreads in fasta or fastq format
+-input_for_database all.fq
++input_for_database pacbio.filtered_subreads.fasta
+ 
+ # min_len_for_query: the subreads longer than or equal to this value will be corrected
+ min_len_for_query 500
+@@ -11,9 +11,9 @@
+ estimated_depth 100
+ 
+ # ca_path: where Celera Assembler exist in
+-# If you don't have it and only want to run error-correction,
+-# don't set this variable (comment it out)
+-ca_path /home/imai/wgs/Linux-amd64/bin/
++# If have it and want to run a full assembly with it,
++# set this variable
++# ca_path /home/imai/wgs/Linux-amd64/bin/
+ 
+ # the number of processes used by all vs. all alignment
+ # = 'partition' (in single node mode)

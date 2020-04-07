@@ -1,0 +1,45 @@
+#!/usr/bin/make -f
+
+#DH_VERBOSE = 1
+#include /usr/share/dpkg/default.mk
+
+WAF = ./waf -vvv
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	$(WAF) configure --prefix=/usr
+
+override_dh_auto_build:
+	$(WAF) build
+
+override_dh_auto_install:
+	$(WAF) install --destdir=$(CURDIR)/debian/sprai
+
+override_dh_install:
+	mkdir -p $(CURDIR)/debian/sprai/usr/lib/sprai
+	cd $(CURDIR)/debian/sprai/usr/bin \
+	&& mv * ../lib/sprai/ \
+	&& mv ../lib/sprai/ezez* .
+	cd $(CURDIR)/debian/sprai/usr/bin \
+	&& \
+	for script in *; \
+	do \
+		mv $$script $$(basename $$script .pl) \
+		&& ln -sf $$(basename $$script .pl) $$script; \
+	done
+	dh_install
+	for pl in `grep -Rl '#![[:space:]]*/usr/bin/env[[:space:]]\+perl' debian/*/usr/*` ; do \
+	    sed -i '1s?^#![[:space:]]*/usr/bin/env[[:space:]]\+perl?#!/usr/bin/perl?' $${pl} ; \
+	done
+
+override_dh_installman:
+	dh_installman --language=C
+
+override_dh_installchangelogs:
+	dh_installchangelogs doc/_build/html/_sources/index.txt
+
+override_dh_auto_clean:
+	$(WAF) distclean
+	find waflib -name "*.pyc" -delete

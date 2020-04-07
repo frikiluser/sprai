@@ -1,0 +1,66 @@
+Description: Set sprai libexec path and blast path for system-wide installation
+Author: Afif Elghraoui <afif@debian.org>
+Forwarded: not-needed
+Last-Update: 2016-06-01
+--- sprai.orig/ezez4qsub_vx1.pl
++++ sprai/ezez4qsub_vx1.pl
+@@ -117,8 +117,8 @@
+ my $trim="";
+ my $estimated_genome_size="";
+ my $ca_path="";
+-my $blast_path="";
+-my $sprai_path="";
++my $blast_path="/usr/bin";
++my $sprai_path="/usr/lib/sprai";
+ my $queue_req="";
+ my $longestXx_queue_req="";
+ my $blast_rreq="";
+--- sprai.orig/ezez_vx1.pl
++++ sprai/ezez_vx1.pl
+@@ -9,7 +9,7 @@
+ my $opt_dryrun;
+ my $opt_ec_only;
+ my $opt_foobar;
+-my $sprai_path="";
++my $sprai_path="/usr/lib/sprai";
+ my $blast_path="";
+ 
+ my $now = `date +%Y%m%d_%H%M%S`;
+--- sprai.orig/ec.spec
++++ sprai/ec.spec
+@@ -11,6 +11,8 @@
+ estimated_depth 100
+ 
+ # ca_path: where Celera Assembler exist in
++# If you don't have it and only want to run error-correction,
++# don't set this variable (comment it out)
+ ca_path /home/imai/wgs/Linux-amd64/bin/
+ 
+ # the number of processes used by all vs. all alignment
+@@ -19,13 +21,6 @@
+ pre_partition 2
+ partition 12
+ 
+-# sprai prefer full paths
+-# if you use ezez4qsub*.pl. you MUST specify blast_path & sprai_path
+-# blast_path: where blastn and makeblastdb exist in
+-blast_path /home/imai/bin/
+-# sprai_path: where binaries of sprai (bfmt72s, nss2v_v3 and so on) exist in
+-sprai_path /home/imai/test/sprai/bin/
+-
+ #### many node mode (advanced) ####
+ 
+ #sge: options for all the SGE jobs (used by ezez4qsub_vx1.pl)
+--- sprai.orig/ezez4makefile_v4.pl
++++ sprai/ezez4makefile_v4.pl
+@@ -84,8 +84,8 @@
+ my $estimated_depth = 0;
+ my @gsizes=();
+ my $ca_path="/opt/wgs-8.1/Linux-amd64/bin/";
+-my $blast_path="/usr/local/bin/";
+-my $sprai_path="/usr/local/bin/";
++my $blast_path="/usr/bin/";
++my $sprai_path="/usr/lib/sprai/";
+ my $param_makedb_rreq = ""; # not so much resource 
+ my $param_blast_rreq = ""; # desired to have a high CPU slot for latency optimization
+ my $param_ec_rreq = ""; # not so much resource 

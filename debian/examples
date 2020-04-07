@@ -1,0 +1,4 @@
+ec.spec
+pbasm.spec
+doc/_build/html/_sources/Example.txt
+debian/data/*

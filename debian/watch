@@ -1,0 +1,10 @@
+version=3
+
+# No repacksuffix is specified because it's handled by debian/repack-waf.
+# See <https://wiki.debian.org/UnpackWaf>.
+opts="\
+	dversionmangle=s/\+dfsg\d?$//,\
+	repack,\
+" \
+http://zombie.cb.k.u-tokyo.ac.jp/sprai/Download.html .*/sprai-(.*)\.tar\.gz \
+debian debian/repack-waf

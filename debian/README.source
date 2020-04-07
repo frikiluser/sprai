@@ -1,0 +1,11 @@
+sprai for Debian
+----------------
+
+The upstream build system is waf, which needs to be repacked for Debian
+standards. Using gbp import-orig does not work right, as the repack-waf
+script doesn't get run and you end up with the waf binary in the source
+distribution. Instead, manually call uscan, then use gbp to import the
+resulting repacked tarball.
+
+ -- Afif Elghraoui <afif@debian.org>, Tue, 26 Apr 2016 19:45:44 -0700
+
